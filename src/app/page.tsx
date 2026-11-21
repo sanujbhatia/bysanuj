@@ -45,20 +45,25 @@ export default async function Portfolio({ searchParams }: { searchParams: Promis
   return (
     <div className="mx-auto max-w-[1120px] px-5 pb-16 sm:px-8">
       {/* Profile */}
-      <header className="flex flex-col gap-6 border-b border-border py-10 sm:flex-row sm:items-start sm:py-14">
+      <header className="border-b border-border py-6 sm:flex sm:items-start sm:gap-6 sm:py-14">
         {profile?.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={profile.avatarUrl} alt="" className="h-24 w-24 shrink-0 rounded-full object-cover" referrerPolicy="no-referrer" />
+          <img src={profile.avatarUrl} alt="" className="hidden h-24 w-24 shrink-0 rounded-full object-cover sm:block" referrerPolicy="no-referrer" />
         ) : (
-          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-accent-soft font-serif text-3xl text-accent">
+          <div className="hidden h-24 w-24 shrink-0 items-center justify-center rounded-full bg-accent-soft font-serif text-3xl text-accent sm:flex">
             {name.split(" ").map((w) => w[0]).join("").slice(0, 2)}
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <h1 className="font-serif text-[34px] leading-tight tracking-tight sm:text-[42px]">{name}</h1>
-          <p className="mt-1 text-[17px] text-muted">{profile?.headline}</p>
-          {profile?.bio && <p className="mt-4 max-w-[68ch] whitespace-pre-line text-[15.5px] leading-relaxed">{profile.bio}</p>}
-          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[14px] text-muted">
+          <div className="flex items-center gap-3.5">
+            <Avatar url={profile?.avatarUrl} name={name} />
+            <div className="min-w-0">
+              <h1 className="font-serif text-[28px] leading-tight tracking-tight sm:text-[42px]">{name}</h1>
+              <p className="text-[15px] text-muted sm:mt-1 sm:text-[17px]">{profile?.headline}</p>
+            </div>
+          </div>
+          {profile?.bio && <p className="mt-3 max-w-[68ch] whitespace-pre-line text-[14.5px] leading-relaxed sm:mt-4 sm:text-[15.5px]">{profile.bio}</p>}
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13.5px] text-muted sm:mt-5 sm:gap-x-5 sm:text-[14px]">
             {profile?.location && (
               <span className="inline-flex items-center gap-1.5"><MapPin size={15} />{profile.location}</span>
             )}
@@ -71,12 +76,12 @@ export default async function Portfolio({ searchParams }: { searchParams: Promis
               </a>
             ))}
           </div>
-          <p className="mt-6 text-[14px] text-muted tabular">
+          <p className="mt-3 text-[13.5px] text-muted tabular sm:mt-6 sm:text-[14px]">
             <strong className="font-semibold text-text">{articles.length.toLocaleString("en-IN")}</strong> articles across{" "}
             <strong className="font-semibold text-text">{activeSources.length}</strong> {activeSources.length === 1 ? "publication" : "publications"}{since ? ` since ${since}` : ""}
           </p>
           {activeSources.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[14px]">
+            <div className="mt-2 hidden flex-wrap gap-x-4 gap-y-1 text-[14px] sm:flex">
               {activeSources.map((s) => (
                 <Link key={s.id} href={href({ pub: s.shortName.toLowerCase(), n: undefined })} className="inline-flex items-center gap-1.5 hover:underline">
                   <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
@@ -90,18 +95,22 @@ export default async function Portfolio({ searchParams }: { searchParams: Promis
 
       {/* Featured */}
       {featured.length > 0 && (
-        <section className="border-b border-border py-10">
-          <h2 className="mb-5 text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">Featured work</h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {featured.map((a) => <Card key={a.id} a={a} src={a.sourceId ? srcById.get(a.sourceId) : undefined} large />)}
+        <section className="border-b border-border py-6 sm:py-10">
+          <h2 className="mb-4 sm:mb-5 text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">Featured work</h2>
+          <div className="no-scrollbar -mx-5 flex snap-x snap-mandatory scroll-px-5 gap-4 overflow-x-auto px-5 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:px-0 lg:grid-cols-3">
+            {featured.map((a) => (
+              <div key={a.id} className="w-[64%] shrink-0 snap-start sm:w-auto">
+                <Card a={a} src={a.sourceId ? srcById.get(a.sourceId) : undefined} large />
+              </div>
+            ))}
           </div>
         </section>
       )}
 
       {/* Filters */}
-      <section className="py-8">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="font-serif text-[26px] tracking-tight">
+      <section className="pb-5 pt-6 sm:py-8">
+        <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <h2 className="font-serif text-[22px] tracking-tight sm:text-[26px]">
             {isFiltered ? `${filtered.length.toLocaleString("en-IN")} ${filtered.length === 1 ? "article" : "articles"}` : "All articles"}
           </h2>
           <form action="/" className="relative w-full lg:w-[300px]">
@@ -114,7 +123,7 @@ export default async function Portfolio({ searchParams }: { searchParams: Promis
             />
           </form>
         </div>
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="no-scrollbar -mx-5 mt-3 flex gap-2 overflow-x-auto px-5 sm:mx-0 sm:mt-4 sm:flex-wrap sm:px-0">
           <Chip href={href({ pub: undefined, n: undefined })} active={!pubSource}>All publications</Chip>
           {activeSources.map((s) => (
             <Chip key={s.id} href={href({ pub: s.shortName.toLowerCase(), n: undefined })} active={pubSource?.id === s.id} dot={s.color}>
@@ -123,7 +132,7 @@ export default async function Portfolio({ searchParams }: { searchParams: Promis
           ))}
         </div>
         {topicCounts.length > 1 && (
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="no-scrollbar -mx-5 mt-2 flex gap-2 overflow-x-auto px-5 sm:mx-0 sm:flex-wrap sm:px-0">
             <Chip href={href({ topic: undefined, n: undefined })} active={!topic} subtle>All topics</Chip>
             {topicCounts.map(([t]) => (
               <Chip key={t} href={href({ topic: t.toLowerCase(), n: undefined })} active={topic === t} subtle>{t}</Chip>
@@ -162,13 +171,25 @@ export default async function Portfolio({ searchParams }: { searchParams: Promis
   );
 }
 
+function Avatar({ url, name }: { url?: string; name: string }) {
+  // Small avatar beside the name on phones; desktop shows the large one on the left.
+  return url ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={url} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover sm:hidden" referrerPolicy="no-referrer" />
+  ) : (
+    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent-soft font-serif text-xl text-accent sm:hidden">
+      {name.split(" ").map((w) => w[0]).join("").slice(0, 2)}
+    </div>
+  );
+}
+
 function Chip({ href, active, dot, subtle, children }: { href: string; active: boolean; dot?: string; subtle?: boolean; children: React.ReactNode }) {
   return (
     <Link
       href={href}
       scroll={false}
       className={
-        "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] transition-colors " +
+        "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[13px] transition-colors " +
         (active
           ? "border-text bg-text text-bg"
           : subtle
@@ -196,18 +217,18 @@ function Card({ a, src, large }: { a: PublicArticle; src?: { name: string; color
         )}
       </div>
       <div className="min-w-0 flex-1">
-      <div className={`flex items-center gap-2 text-[12.5px] text-muted ${large ? "mt-3" : "sm:mt-3"}`}>
+      <div className={`flex items-center gap-2 text-[12.5px] text-muted ${large ? "mt-2.5 sm:mt-3" : "sm:mt-3"}`}>
         <span className="inline-flex items-center gap-1.5 font-medium text-text">
           <span className="h-2 w-2 rounded-full" style={{ background: src?.color ?? "#9b9a96" }} />
           {src?.name ?? a.publication}
         </span>
         {a.publishedAt && <><span className="text-faint">·</span><time dateTime={a.publishedAt}>{formatDate(a.publishedAt)}</time></>}
       </div>
-      <h3 className={`mt-1.5 font-serif leading-snug tracking-tight group-hover:underline group-hover:decoration-1 group-hover:underline-offset-4 ${large ? "text-[21px]" : "text-[16.5px] sm:text-[18px]"}`}>
+      <h3 className={`mt-1.5 font-serif leading-snug tracking-tight group-hover:underline group-hover:decoration-1 group-hover:underline-offset-4 ${large ? "text-[17px] sm:text-[21px]" : "text-[16.5px] sm:text-[18px]"}`}>
         {a.title}
       </h3>
       {a.dek && (
-        <div className={large ? "" : "max-sm:hidden"}>
+        <div className="max-sm:hidden">
           <p className={`mt-1.5 text-[14px] leading-relaxed text-muted ${large ? "line-clamp-3" : "line-clamp-2"}`}>{a.dek}</p>
         </div>
       )}

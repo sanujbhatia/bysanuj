@@ -112,3 +112,5 @@ body {
 }
 
 .font-serif { font-family: var(--font-serif); }
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
