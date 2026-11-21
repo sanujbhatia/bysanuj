@@ -15,6 +15,8 @@ A self-hosted, Authory-style portfolio: it collects every article Sanuj Bhatia p
    - someone else → remembered as rejected and never fetched again (this filters sidebar links)
    - no byline found → imported but **hidden** under *Articles → Needs review*
 
+**RSS feeds.** If an author page has a feed URL set (Edit → RSS feed URL), the importer reads the feed instead of scraping. Feed items already include the headline, date, image and byline, so no article pages are opened. Android Authority uses this because it blocks Vercel's servers from its HTML pages. If a site blocks the feed too, Edit → "Paste the feed" lets you paste the feed XML from your own browser.
+
 Each pass is time-boxed (about 50 s) to fit Vercel's free plan. Sync now repeats passes until everything is done. Only links and metadata are stored; images are hotlinked from the publications, so Vercel image quotas aren't used.
 
 Site families (`kind`):

@@ -1,9 +1,9 @@
 import "server-only";
-import { and, asc, count, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
 import { db } from "@/db";
 import { articles, profile, queue, rejected, sources, syncRuns, type Source } from "@/db/schema";
-import { bylineMatch, classifyTopic, extractArticle, extractListing, listingPageUrl } from "@/lib/scrape";
+import { bylineMatch, classifyTopic, extractArticle, extractListing, listingPageUrl, parseFeed } from "@/lib/scrape";
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36";
@@ -17,11 +17,11 @@ export class FetchError extends Error {
   }
 }
 
-export async function fetchHtml(url: string): Promise<{ html: string; finalUrl: string }> {
+export async function fetchHtml(url: string, accept = "text/html,application/xhtml+xml"): Promise<{ html: string; finalUrl: string }> {
   const res = await fetch(url, {
     headers: {
       "User-Agent": UA,
-      Accept: "text/html,application/xhtml+xml",
+      Accept: accept,
       "Accept-Language": "en-US,en;q=0.9",
     },
     redirect: "follow",
@@ -59,13 +59,75 @@ async function readListing(source: Source, page: number) {
   return { urls: redirectedAway ? [] : extractListing(html, finalUrl, source.kind, source.authorUrl) };
 }
 
+/**
+ * Adds articles from an RSS feed's XML. Feed items already carry the headline, date, image and
+ * byline, so no article pages need to be opened. Returns how many were new.
+ */
+export async function importFeedXml(source: Source, xml: string, authorNames: string[]): Promise<{ items: number; added: number }> {
+  const items = parseFeed(xml, source.feedUrl ?? source.authorUrl);
+  if (items.length === 0) return { items: 0, added: 0 };
+  const known = await knownUrls(items.map((i) => i.url));
+  let added = 0;
+  for (const it of items) {
+    if (known.has(it.url)) continue;
+    const match = it.authors.length ? bylineMatch(it.authors, authorNames) : "verified"; // author feeds only list the author's work
+    if (match === "other") {
+      await db.insert(rejected).values({ url: it.url, reason: "different byline" }).onConflictDoNothing();
+      continue;
+    }
+    const inserted = await db
+      .insert(articles)
+      .values({
+        url: it.url,
+        sourceId: source.id,
+        publication: source.name,
+        title: it.title,
+        dek: it.dek,
+        imageUrl: it.imageUrl,
+        section: it.section,
+        topic: classifyTopic(it.title, it.section, new URL(it.url).pathname),
+        publishedAt: it.publishedAt,
+        byline: "verified",
+      })
+      .onConflictDoNothing()
+      .returning({ id: articles.id });
+    if (inserted.length) added++;
+  }
+  return { items: items.length, added };
+}
+
 type Ctx = { deadline: number; errors: string[]; pagesRead: number; articlesRead: number; added: number };
 const timeLeft = (c: Ctx) => c.deadline - Date.now();
 
-/** Reads page 1 of every enabled author page and queues anything new. */
-async function checkLatest(ctx: Ctx, list: Source[]) {
+/** Reads page 1 of every enabled author page (or its feed) and queues anything new. */
+async function checkLatest(ctx: Ctx, list: Source[], authorNames: string[]) {
   await Promise.all(
     list.map(async (s) => {
+      if (s.feedUrl) {
+        try {
+          const { html: xml } = await fetchHtml(s.feedUrl, "application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.8");
+          ctx.pagesRead++;
+          const r = await importFeedXml(s, xml, authorNames);
+          ctx.added += r.added;
+          await db
+            .update(sources)
+            .set({
+              lastCheckedAt: new Date(),
+              backfillPage: null,
+              lastStatus: r.items ? `ok · feed, ${r.items} items, ${r.added} new` : "feed had no items",
+              lastError: r.items ? null : "The feed loaded but had no articles in it.",
+            })
+            .where(eq(sources.id, s.id));
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          ctx.errors.push(`${s.shortName} feed: ${msg}`);
+          await db
+            .update(sources)
+            .set({ lastCheckedAt: new Date(), lastStatus: "error", lastError: `Feed: ${msg}` })
+            .where(eq(sources.id, s.id));
+        }
+        return;
+      }
       try {
         const { urls } = await readListing(s, 1);
         ctx.pagesRead++;
@@ -94,7 +156,7 @@ async function checkLatest(ctx: Ctx, list: Source[]) {
 async function backfill(ctx: Ctx, list: Source[], budgetEnd: number) {
   for (const s of list) {
     // Skip sites whose author page couldn't be read just now; they'll be retried next run.
-    if (s.backfillPage == null || s.lastStatus === "error") continue;
+    if (s.backfillPage == null || s.feedUrl || s.lastStatus === "error") continue;
     let page = s.backfillPage;
     let firstPage: Set<string> | null = null;
     while (Date.now() < budgetEnd) {
@@ -191,7 +253,7 @@ async function drainQueue(ctx: Ctx, srcById: Map<string, Source>, authorNames: s
 export async function pendingWork() {
   const [[q], [b]] = await Promise.all([
     db.select({ n: count() }).from(queue).where(lt(queue.attempts, MAX_ATTEMPTS)),
-    db.select({ n: count() }).from(sources).where(and(eq(sources.enabled, true), isNotNull(sources.backfillPage))),
+    db.select({ n: count() }).from(sources).where(and(eq(sources.enabled, true), isNotNull(sources.backfillPage), isNull(sources.feedUrl))),
   ]);
   return { queued: q.n, backfilling: b.n };
 }
@@ -221,7 +283,7 @@ export async function runSync(opts: { trigger: string; checkLatest: boolean; bud
   const prof = await db.query.profile.findFirst();
   const authorNames = prof?.authorNames?.length ? prof.authorNames : ["sanuj bhatia"];
 
-  if (opts.checkLatest) await checkLatest(ctx, all);
+  if (opts.checkLatest) await checkLatest(ctx, all, authorNames);
   // Give the archive at most a third of the remaining time so new articles keep flowing in.
   const fresh = await db.select().from(sources).where(eq(sources.enabled, true)).orderBy(asc(sources.sortOrder));
   await backfill(ctx, fresh, Date.now() + Math.max(0, timeLeft(ctx) - 14_000) / 3);

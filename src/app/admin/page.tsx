@@ -1,7 +1,7 @@
 import { count, desc, gte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { articles, queue, sources, syncRuns } from "@/db/schema";
-import { SyncButton } from "@/components/admin-client";
+import { PasteFeedForm, SyncButton } from "@/components/admin-client";
 import { deleteSource, restartBackfill, retryFailed, saveSource, toggleSource } from "@/actions/admin";
 import { KIND_LABELS } from "@/lib/defaults";
 import { SOURCE_KINDS, type Source } from "@/db/schema";
@@ -80,7 +80,9 @@ export default async function AdminHome() {
                     {s.lastStatus && <div className={`text-[12px] ${s.lastError ? "text-danger" : "text-faint"}`}>{s.lastError ?? s.lastStatus}</div>}
                   </td>
                   <td className="px-3 py-2.5 text-[12.5px]">
-                    {s.backfillPage == null ? (
+                    {s.feedUrl ? (
+                      <span className="text-muted">Via RSS feed</span>
+                    ) : s.backfillPage == null ? (
                       <span className="text-ok">Complete</span>
                     ) : (
                       <span className="text-muted">Next: page {s.backfillPage}</span>
@@ -94,6 +96,7 @@ export default async function AdminHome() {
                       <summary className="cursor-pointer list-none text-[13px] text-accent hover:underline">Edit</summary>
                       <div className="absolute right-0 z-10 mt-2 w-[340px] rounded-lg border border-border bg-panel p-3 shadow-lg">
                         <SourceForm s={s} />
+                        {s.feedUrl && <PasteFeedForm id={s.id} feedUrl={s.feedUrl} />}
                         <div className="mt-3 flex justify-between border-t border-border pt-3 text-[13px]">
                           <form action={toggleSource.bind(null, s.id, !s.enabled)}>
                             <button className="hover:underline">{s.enabled ? "Pause syncing" : "Resume syncing"}</button>
@@ -156,6 +159,7 @@ function SourceForm({ s }: { s?: Source }) {
         <input name="color" type="color" defaultValue={s?.color ?? "#6b7280"} className="h-8 w-full rounded-md border border-border bg-panel" />
       </div>
       <input name="authorUrl" type="url" placeholder="https://…/author/you/" defaultValue={s?.authorUrl} required className={f} />
+      <input name="feedUrl" type="url" placeholder="RSS feed URL (optional, used instead of the page)" defaultValue={s?.feedUrl ?? ""} className={f} />
       <select name="kind" defaultValue={s?.kind ?? "generic"} className={f}>
         {SOURCE_KINDS.map((k) => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}
       </select>

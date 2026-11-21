@@ -313,3 +313,59 @@ export function classifyTopic(...parts: (string | null | undefined)[]): Topic {
   for (const [topic, re] of TOPIC_RULES) if (re.test(text)) return topic;
   return "Other";
 }
+
+export type FeedItem = {
+  url: string;
+  title: string;
+  dek: string;
+  imageUrl: string | null;
+  publishedAt: Date | null;
+  section: string | null;
+  authors: string[];
+};
+
+function tag(block: string, name: string): string | null {
+  const re = new RegExp(`<${name.replace(":", "\\:")}(?:\\s[^>]*)?>([\\s\\S]*?)</${name.replace(":", "\\:")}>`, "i");
+  const m = block.match(re);
+  if (!m) return null;
+  const v = m[1].replace(/^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/, "$1").trim();
+  return v ? decodeEntities(v) : null;
+}
+
+function attr(block: string, name: string, attribute: string): string | null {
+  const re = new RegExp(`<${name.replace(":", "\\:")}\\s[^>]*${attribute}=["']([^"']+)["']`, "i");
+  const m = block.match(re);
+  return m ? decodeEntities(m[1]) : null;
+}
+
+const stripTags = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+/** Parses an RSS 2.0 (or Atom) feed into article items. */
+export function parseFeed(xml: string, feedUrl: string): FeedItem[] {
+  const blocks = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) ?? xml.match(/<entry[\s>][\s\S]*?<\/entry>/gi) ?? [];
+  const out: FeedItem[] = [];
+  for (const b of blocks) {
+    const link = tag(b, "link") ?? attr(b, "link", "href");
+    const url = link ? normalizeUrl(link, feedUrl) : null;
+    const title = tag(b, "title");
+    if (!url || !title) continue;
+    const desc = tag(b, "description") ?? tag(b, "summary") ?? "";
+    const img =
+      attr(b, "media:content", "url") ??
+      attr(b, "media:thumbnail", "url") ??
+      attr(b, "enclosure", "url") ??
+      (tag(b, "content:encoded") ?? desc).match(/<img[^>]+src=["']([^"']+)["']/i)?.[1] ??
+      null;
+    const authors = [tag(b, "dc:creator"), tag(b, "author"), tag(b, "name")].filter((x): x is string => !!x);
+    out.push({
+      url,
+      title: cleanTitle(stripTags(title)),
+      dek: stripTags(desc).replace(/\s*(The post|Continue reading|Read more).*$/i, "").slice(0, 400),
+      imageUrl: img ? absUrl(img, feedUrl) : null,
+      publishedAt: date(tag(b, "pubDate") ?? tag(b, "published") ?? tag(b, "updated") ?? tag(b, "dc:date")),
+      section: tag(b, "category"),
+      authors,
+    });
+  }
+  return out;
+}

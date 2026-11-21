@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { articles, profile, queue, rejected, sources, SOURCE_KINDS } from "@/db/schema";
 import { requireAdmin } from "@/server/session";
-import { runSync, fetchHtml, type SyncResult } from "@/server/sync";
+import { runSync, fetchHtml, importFeedXml, type SyncResult } from "@/server/sync";
 import { bylineMatch, classifyTopic, extractArticle, normalizeUrl, TOPICS } from "@/lib/scrape";
 import { signOut } from "@/auth";
 
@@ -32,13 +32,15 @@ const sourceSchema = z.object({
   shortName: z.string().trim().min(1).max(6),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   authorUrl: z.string().trim().url().max(300),
+  feedUrl: z.union([z.literal(""), z.string().trim().url().max(300)]).optional(),
   kind: z.enum(SOURCE_KINDS),
 });
 
 export async function saveSource(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");
-  const data = sourceSchema.parse(Object.fromEntries(formData));
+  const parsed = sourceSchema.parse(Object.fromEntries(formData));
+  const data = { ...parsed, feedUrl: parsed.feedUrl || null };
   if (id) {
     const before = await db.query.sources.findFirst({ where: eq(sources.id, id) });
     await db
@@ -55,6 +57,20 @@ export async function saveSource(formData: FormData) {
     await db.insert(sources).values({ ...data, sortOrder: all.length });
   }
   refresh();
+}
+
+/** Fallback for sites that block Vercel: paste the feed's XML (opened in your own browser). */
+export async function importPastedFeed(_: unknown, formData: FormData): Promise<{ ok: boolean; message: string }> {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const xml = String(formData.get("xml") ?? "");
+  const src = await db.query.sources.findFirst({ where: eq(sources.id, id) });
+  if (!src) return { ok: false, message: "Unknown author page." };
+  if (!/<(rss|feed)[\s>]/i.test(xml)) return { ok: false, message: "That doesn't look like feed XML." };
+  const prof = await db.query.profile.findFirst();
+  const r = await importFeedXml(src, xml, prof?.authorNames ?? ["sanuj bhatia"]);
+  refresh();
+  return { ok: r.items > 0, message: r.items ? `Read ${r.items} items, added ${r.added} new.` : "No articles found in that XML." };
 }
 
 export async function toggleSource(id: string, enabled: boolean) {

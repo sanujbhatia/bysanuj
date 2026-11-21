@@ -43,6 +43,8 @@ export const sources = pgTable("sources", {
   shortName: text("short_name").notNull(),
   color: text("color").notNull().default("#6b7280"),
   authorUrl: text("author_url").notNull().unique(),
+  /** Optional RSS feed of the author's articles. When set, it's used instead of scraping pages. */
+  feedUrl: text("feed_url"),
   kind: text("kind").$type<SourceKind>().notNull(),
   enabled: boolean("enabled").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),

@@ -2,7 +2,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
-import { addByUrl, deleteArticles, saveProfile, setTopic, syncStep } from "@/actions/admin";
+import { addByUrl, deleteArticles, importPastedFeed, saveProfile, setTopic, syncStep } from "@/actions/admin";
 import { TOPICS } from "@/lib/scrape";
 
 const btn = "inline-flex h-9 items-center gap-2 rounded-md px-3.5 text-[14px] font-medium disabled:opacity-60";
@@ -161,5 +161,23 @@ export function ProfileForm({ p }: { p: ProfileValues }) {
         {state && <span className={`text-[13px] ${state.ok ? "text-ok" : "text-danger"}`}>{state.message}</span>}
       </div>
     </form>
+  );
+}
+
+export function PasteFeedForm({ id, feedUrl }: { id: string; feedUrl: string }) {
+  const [state, action, pending] = useActionState(importPastedFeed, null);
+  return (
+    <details className="mt-3 border-t border-border pt-3 text-[12.5px]">
+      <summary className="cursor-pointer text-muted hover:text-text">Site blocking the importer? Paste the feed</summary>
+      <p className="mt-2 text-faint">
+        Open <a href={feedUrl} target="_blank" className="text-accent underline">the feed</a>, view the page source, copy everything and paste it here.
+      </p>
+      <form action={action} className="mt-2 flex flex-col gap-2">
+        <input type="hidden" name="id" value={id} />
+        <textarea name="xml" rows={4} required className="rounded-md border border-border bg-panel p-2 font-mono text-[11px]" />
+        <button disabled={pending} className="h-8 rounded-md border border-border text-[13px] hover:bg-hover">{pending ? "Importing…" : "Import pasted feed"}</button>
+        {state && <p className={state.ok ? "text-ok" : "text-danger"}>{state.message}</p>}
+      </form>
+    </details>
   );
 }

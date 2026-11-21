@@ -118,3 +118,33 @@ describe("classifyTopic", () => {
     expect(classifyTopic("Something totally unrelated here")).toBe("Other");
   });
 });
+
+describe("parseFeed", () => {
+  it("reads WordPress-style RSS items", async () => {
+    const { parseFeed } = await import("@/lib/scrape");
+    const xml = `<?xml version="1.0"?><rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/"><channel>
+      <title>Sanuj Bhatia, Author at Android Authority</title>
+      <item>
+        <title><![CDATA[Google finally made Pixel VIPs useful, but it&#8217;s missing these 5 features]]></title>
+        <link>https://www.androidauthority.com/pixel-vips-widget-missing-features-3724400/</link>
+        <dc:creator><![CDATA[Sanuj Bhatia]]></dc:creator>
+        <pubDate>Mon, 26 Oct 2026 10:00:06 +0000</pubDate>
+        <category><![CDATA[Google Pixel]]></category>
+        <description><![CDATA[<p>The widget is great, but it needs more.</p><p>The post <a href="x">Google finally...</a> appeared first on Android Authority.</p>]]></description>
+        <media:content url="https://www.androidauthority.com/wp-content/uploads/2026/10/vips.jpg" medium="image" />
+      </item>
+      <item><title>No link here</title></item>
+    </channel></rss>`;
+    const items = parseFeed(xml, "https://www.androidauthority.com/author/sanujbhatia/feed/");
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      url: "https://www.androidauthority.com/pixel-vips-widget-missing-features-3724400/",
+      title: "Google finally made Pixel VIPs useful, but it’s missing these 5 features",
+      dek: "The widget is great, but it needs more.",
+      imageUrl: "https://www.androidauthority.com/wp-content/uploads/2026/10/vips.jpg",
+      section: "Google Pixel",
+      authors: ["Sanuj Bhatia"],
+    });
+    expect(items[0].publishedAt?.toISOString()).toBe("2026-10-26T10:00:06.000Z");
+  });
+});
